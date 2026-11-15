@@ -34,3 +34,50 @@ mcp = FastMCP(
     SERVICE_NAME,
     host="0.0.0.0",
     port=PORT,
+    stateless_http=True,  # no sessions: safe on Render restarts
+    json_response=True,
+)
+
+
+class AgencyStatus(BaseModel):
+    service: str
+    version: str
+    status: str
+    phase: str
+    started_at: str
+    uptime_seconds: int
+    server_time_utc: str
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Get agency status",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    )
+)
+def get_agency_status() -> AgencyStatus:
+    """Return the current status of the AV Digital Agency MCP server."""
+    now = datetime.now(timezone.utc)
+    logger.info("tool called: get_agency_status")
+    return AgencyStatus(
+        service=SERVICE_NAME,
+        version=VERSION,
+        status="ok",
+        phase="1 - MCP server foundation",
+        started_at=STARTED_AT.isoformat(),
+        uptime_seconds=int((now - STARTED_AT).total_seconds()),
+        server_time_utc=now.isoformat(),
+    )
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health(request: Request) -> JSONResponse:
+    return JSONResponse({"status": "ok", "service": SERVICE_NAME, "version": VERSION})
+
+
+if __name__ == "__main__":
+    logger.info("starting %s v%s on port %s", SERVICE_NAME, VERSION, PORT)
+    mcp.run(transport="streamable-http")
